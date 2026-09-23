@@ -64,7 +64,9 @@ module_status tobii_tracker::start_tracker(QFrame*)
         return error("No stream engine compatible device(s) found.");
     }
 
-    tobii_error = tobii_device_create(api, url, &device);
+    // Stream Engine 4.0 added field_of_use; head tracking is an interactive
+    // use. Older three-argument SDKs need this call reverted.
+    tobii_error = tobii_device_create(api, url, TOBII_FIELD_OF_USE_INTERACTIVE, &device);
     if (tobii_error != TOBII_ERROR_NO_ERROR)
     {
         tobii_api_destroy(api);
