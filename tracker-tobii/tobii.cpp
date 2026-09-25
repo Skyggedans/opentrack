@@ -61,6 +61,7 @@ module_status tobii_tracker::start_tracker(QFrame*)
     if (tobii_error != TOBII_ERROR_NO_ERROR || url[0] == '\0')
     {
         tobii_api_destroy(api);
+        api = nullptr;
         return error("No stream engine compatible device(s) found.");
     }
 
@@ -70,6 +71,7 @@ module_status tobii_tracker::start_tracker(QFrame*)
     if (tobii_error != TOBII_ERROR_NO_ERROR)
     {
         tobii_api_destroy(api);
+        api = nullptr;
         return error(QString("Failed to connect to %1.").arg(url));
     }
 
@@ -77,7 +79,9 @@ module_status tobii_tracker::start_tracker(QFrame*)
     if (tobii_error != TOBII_ERROR_NO_ERROR)
     {
         tobii_device_destroy(device);
+        device = nullptr;
         tobii_api_destroy(api);
+        api = nullptr;
         return error("Failed to subscribe to head pose stream.");
     }
 
