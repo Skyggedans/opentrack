@@ -92,7 +92,19 @@ void tobii_tracker::data(double* data)
 {
     QMutexLocker lck(&mtx);
     tobii_error_t tobii_error = tobii_device_process_callbacks(device);
-    if (tobii_error != TOBII_ERROR_NO_ERROR)
+    if (tobii_error == TOBII_ERROR_CONNECTION_FAILED)
+    {
+        // The connection to the tracker was lost (with libtobii.so, the
+        // tobiid service restarted). Try to get it back at most once a
+        // second, and keep reporting the last pose meanwhile.
+        auto const now = std::chrono::steady_clock::now();
+        if (now - last_reconnect >= std::chrono::seconds(1))
+        {
+            last_reconnect = now;
+            tobii_device_reconnect(device);
+        }
+    }
+    else if (tobii_error != TOBII_ERROR_NO_ERROR)
     {
         return;
     }

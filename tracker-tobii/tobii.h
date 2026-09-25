@@ -15,6 +15,8 @@
 
 #include <QMutex>
 
+#include <chrono>
+
 class tobii_tracker : public ITracker
 {
 public:
@@ -34,6 +36,8 @@ private:
         .rotation_validity_xyz = { TOBII_VALIDITY_INVALID, TOBII_VALIDITY_INVALID, TOBII_VALIDITY_INVALID },
         .rotation_xyz = { 0.f, 0.f, 0.f },
     };
+
+    std::chrono::steady_clock::time_point last_reconnect{};
 
     QMutex mtx;
 };
