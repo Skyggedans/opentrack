@@ -29,7 +29,11 @@ private:
     tobii_api_t* api = nullptr;
     tobii_device_t* device = nullptr;
 
-    tobii_head_pose_t latest_head_pose{
+    // The last valid value of each axis, kept by head_pose_callback: the
+    // position is valid as a whole, each rotation axis on its own. An axis'
+    // validity turns VALID with its first valid value and stays so;
+    // timestamp_us is not kept.
+    tobii_head_pose_t held_head_pose{
         .timestamp_us = 0LL,
         .position_validity = TOBII_VALIDITY_INVALID,
         .position_xyz = { 0.f, 0.f, 0.f },

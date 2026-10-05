@@ -26,9 +26,26 @@ static void url_receiver(char const* url, void* user_data)
 
 static void head_pose_callback(tobii_head_pose_t const* head_pose, void* user_data)
 {
-    // Store the latest head pose data in the supplied storage
-    tobii_head_pose_t* head_pose_storage = (tobii_head_pose_t*)user_data;
-    *head_pose_storage = *head_pose;
+    // Fold the pose into the supplied storage axis by axis: the value of an
+    // invalid axis means nothing, so the storage keeps the last valid one.
+    // The position is valid as a whole, each rotation axis on its own.
+    tobii_head_pose_t* held_pose = (tobii_head_pose_t*)user_data;
+
+    if (head_pose->position_validity == TOBII_VALIDITY_VALID)
+    {
+        held_pose->position_validity = TOBII_VALIDITY_VALID;
+        for (int i = 0; i < 3; i++)
+            held_pose->position_xyz[i] = head_pose->position_xyz[i];
+    }
+
+    for (int i = 0; i < 3; i++)
+    {
+        if (head_pose->rotation_validity_xyz[i] == TOBII_VALIDITY_VALID)
+        {
+            held_pose->rotation_validity_xyz[i] = TOBII_VALIDITY_VALID;
+            held_pose->rotation_xyz[i] = head_pose->rotation_xyz[i];
+        }
+    }
 }
 
 tobii_tracker::tobii_tracker() = default;
@@ -75,7 +92,7 @@ module_status tobii_tracker::start_tracker(QFrame*)
         return error(QString("Failed to connect to %1.").arg(url));
     }
 
-    tobii_error = tobii_head_pose_subscribe(device, head_pose_callback, &latest_head_pose);
+    tobii_error = tobii_head_pose_subscribe(device, head_pose_callback, &held_head_pose);
     if (tobii_error != TOBII_ERROR_NO_ERROR)
     {
         tobii_device_destroy(device);
@@ -104,35 +121,37 @@ void tobii_tracker::data(double* data)
             tobii_device_reconnect(device);
         }
     }
-    else if (tobii_error != TOBII_ERROR_NO_ERROR)
-    {
-        return;
-    }
+
+    // opentrack hands in a zero pose every tick and subtracts the centre
+    // from it, so an axis left out here would jump to minus the centre.
+    // Fill in every axis that has had a valid value with its last one, also
+    // when this tick brought an invalid pose, no pose or an error; leave out
+    // only the axes that have had none yet.
 
     // Tobii coordinate system is different from opentrack's
     // Tobii: +x is to the right, +y is up, +z is towards the user
     // Rotation xyz is in radians, x is pitch, y is yaw, z is roll
 
-    if (latest_head_pose.position_validity == TOBII_VALIDITY_VALID)
+    if (held_head_pose.position_validity == TOBII_VALIDITY_VALID)
     {
-        data[TX] = -latest_head_pose.position_xyz[0] * mm_to_cm;
-        data[TY] = latest_head_pose.position_xyz[1] * mm_to_cm;
-        data[TZ] = latest_head_pose.position_xyz[2] * mm_to_cm;
+        data[TX] = -held_head_pose.position_xyz[0] * mm_to_cm;
+        data[TY] = held_head_pose.position_xyz[1] * mm_to_cm;
+        data[TZ] = held_head_pose.position_xyz[2] * mm_to_cm;
     }
 
-    if (latest_head_pose.rotation_validity_xyz[0] == TOBII_VALIDITY_VALID)
+    if (held_head_pose.rotation_validity_xyz[0] == TOBII_VALIDITY_VALID)
     {
-        data[Pitch] = latest_head_pose.rotation_xyz[0] * rad_to_deg;
+        data[Pitch] = held_head_pose.rotation_xyz[0] * rad_to_deg;
     }
 
-    if (latest_head_pose.rotation_validity_xyz[1] == TOBII_VALIDITY_VALID)
+    if (held_head_pose.rotation_validity_xyz[1] == TOBII_VALIDITY_VALID)
     {
-        data[Yaw] = -latest_head_pose.rotation_xyz[1] * rad_to_deg;
+        data[Yaw] = -held_head_pose.rotation_xyz[1] * rad_to_deg;
     }
 
-    if (latest_head_pose.rotation_validity_xyz[2] == TOBII_VALIDITY_VALID)
+    if (held_head_pose.rotation_validity_xyz[2] == TOBII_VALIDITY_VALID)
     {
-        data[Roll] = latest_head_pose.rotation_xyz[2] * rad_to_deg;
+        data[Roll] = held_head_pose.rotation_xyz[2] * rad_to_deg;
     }
 }
 
